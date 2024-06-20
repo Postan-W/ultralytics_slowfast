@@ -93,6 +93,7 @@ def deepsort_update(Tracker, pred, xywh, np_img):
     outputs = Tracker.update(xywh, pred[:,4:5],pred[:,5].tolist(),cv2.cvtColor(np_img,cv2.COLOR_BGR2RGB))
     return outputs
 
+
 def save_yolopreds_tovideo(yolo_preds, id_to_ava_labels, color_map, output_video, vis=False):
     for i, (im, pred) in enumerate(zip(yolo_preds.ims, yolo_preds.pred)):
         # im=cv2.cvtColor(im,cv2.COLOR_BGR2RGB)
@@ -135,7 +136,7 @@ def main(config):
     video=cv2.VideoCapture(config.input)
     width,height = int(video.get(3)),int(video.get(4))
     video.release()
-    outputvideo = cv2.VideoWriter(vide_save_path,cv2.VideoWriter_fourcc(*'mp4v'), 25, (width,height))
+    outputvideo = cv2.VideoWriter(vide_save_path,cv2.VideoWriter_fourcc(*'mp4v'), 30, (width,height))
     print("processing...")
     
     cap = MyVideoCapture(config.input)
@@ -157,8 +158,8 @@ def main(config):
             
         yolo_preds.pred=deepsort_outputs
         
-        if len(cap.stack) == 25:
-            print(f"processing {cap.idx // 25}th clips")
+        if len(cap.stack) == 30:#从下面的代码逻辑可以看出，30帧只取了第一帧的id(yolo_preds.pred[0][:,5].tolist())来分配动作标签
+            print(f"processing {cap.idx // 30}th clips")
             clip = cap.get_video_clip()
             if yolo_preds.pred[0].shape[0]:
                 inputs, inp_boxes, _=ava_inference_transform(clip, yolo_preds.pred[0][:,0:4], crop_size=imsize)
@@ -170,12 +171,14 @@ def main(config):
                 with torch.no_grad():
                     slowfaster_preds = video_model(inputs, inp_boxes.to(device))
                     slowfaster_preds = slowfaster_preds.cpu()
+                    # 可知只为第一帧的每个id分配动作，剩余29帧的相同id就用这个动作标签，也意味着同一目标的30帧中，某一帧id变了，要么没有动作标签，要么有的那个动作标签也是没意义的，这个要想明白
+                    print(len(slowfaster_preds)==len(yolo_preds.pred[0]),":",slowfaster_preds)
                 for tid,avalabel in zip(yolo_preds.pred[0][:,5].tolist(), np.argmax(slowfaster_preds, axis=1).tolist()):
                     id_to_ava_labels[tid] = ava_labelnames[avalabel+1]
                     print("动作标签是:{}".format(id_to_ava_labels))
                 
         save_yolopreds_tovideo(yolo_preds, id_to_ava_labels, coco_color_map, outputvideo, config.show)
-    print("total cost: {:.3f} s, video length: {} s".format(time.time()-a, cap.idx / 25))
+    print("total cost: {:.3f} s, video length: {} s".format(time.time()-a, cap.idx / 30))
     
     cap.release()
     outputvideo.release()
@@ -185,7 +188,7 @@ def main(config):
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', type=str, default="./videos/falldown1.mp4", help='test imgs folder or video or camera')
-    parser.add_argument('--output', type=str, default="./videos/output/output_falldown1.mp4", help='folder to save result imgs, can not use input folder')
+    parser.add_argument('--output', type=str, default="./videos/output/output_falldown2.mp4", help='folder to save result imgs, can not use input folder')
     # object detect config
     parser.add_argument('--imsize', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf', type=float, default=0.4, help='object confidence threshold')
