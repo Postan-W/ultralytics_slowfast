@@ -94,7 +94,7 @@ def deepsort_update(Tracker, pred, xywh, np_img):
     return outputs
 
 
-def save_yolopreds_tovideo(yolo_preds, id_to_ava_labels, color_map, output_video, vis=False):
+def save_yolopreds_tovideo(yolo_preds, id_to_ava_labels, color_map, output_video, vis=False,avalabel_names=None):
     for i, (im, pred) in enumerate(zip(yolo_preds.ims, yolo_preds.pred)):
         # im=cv2.cvtColor(im,cv2.COLOR_BGR2RGB)
         if pred.shape[0]:
@@ -102,7 +102,11 @@ def save_yolopreds_tovideo(yolo_preds, id_to_ava_labels, color_map, output_video
                 if int(cls) != 0:
                     ava_label = ''
                 elif trackid in id_to_ava_labels.keys():
-                    ava_label = id_to_ava_labels[trackid].split(' ')[0]
+                    # ava_label = id_to_ava_labels[trackid].split(' ')[0]
+                    ava_label = ""
+                    for label_index in id_to_ava_labels[trackid]:#把多个标签串起来
+                        current_label = " " + avalabel_names[label_index+1].split(' ')[0]
+                        ava_label += current_label
                 else:
                     ava_label = 'Unknow'
                 text = '{} {} {}'.format(int(trackid),yolo_preds.names[int(cls)],ava_label)
@@ -172,12 +176,22 @@ def main(config):
                     slowfaster_preds = video_model(inputs, inp_boxes.to(device))
                     slowfaster_preds = slowfaster_preds.cpu()
                     # 可知只为第一帧的每个id分配动作，剩余29帧的相同id就用这个动作标签，也意味着同一目标的30帧中，某一帧id变了，要么没有动作标签，要么有的那个动作标签也是没意义的，这个要想明白
-                    print(len(slowfaster_preds)==len(yolo_preds.pred[0]),":",slowfaster_preds)
-                for tid,avalabel in zip(yolo_preds.pred[0][:,5].tolist(), np.argmax(slowfaster_preds, axis=1).tolist()):
-                    id_to_ava_labels[tid] = ava_labelnames[avalabel+1]
-                    print("动作标签是:{}".format(id_to_ava_labels))
+                    # print(len(slowfaster_preds)==len(yolo_preds.pred[0]),":",slowfaster_preds)
+                    #我这里给每个id分配概率最大的3个标签，而不是一个标签
+                    #======================================================================
+                    result_labels = []
+                    for id_pres in slowfaster_preds:
+                        result_labels.append(np.argsort(-id_pres).tolist()[:3])
+                    for tid, avalabel in zip(yolo_preds.pred[0][:, 5].tolist(),
+                                             result_labels):
+                        id_to_ava_labels[tid] = avalabel
+                        # print("动作标签是:{}".format(id_to_ava_labels))
+                    #=======================================================================================
+                # for tid,avalabel in zip(yolo_preds.pred[0][:,5].tolist(), np.argmax(slowfaster_preds, axis=1).tolist()):
+                #     id_to_ava_labels[tid] = ava_labelnames[avalabel+1]
+                #     print("动作标签是:{}".format(id_to_ava_labels))
                 
-        save_yolopreds_tovideo(yolo_preds, id_to_ava_labels, coco_color_map, outputvideo, config.show)
+        save_yolopreds_tovideo(yolo_preds, id_to_ava_labels, coco_color_map, outputvideo, config.show,avalabel_names=ava_labelnames)
     print("total cost: {:.3f} s, video length: {} s".format(time.time()-a, cap.idx / 30))
     
     cap.release()
@@ -187,8 +201,8 @@ def main(config):
     
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input', type=str, default="./videos/falldown1.mp4", help='test imgs folder or video or camera')
-    parser.add_argument('--output', type=str, default="./videos/output/output_falldown2.mp4", help='folder to save result imgs, can not use input folder')
+    parser.add_argument('--input', type=str, default="./videos/pj56.mp4", help='test imgs folder or video or camera')
+    parser.add_argument('--output', type=str, default="./videos/output/output_pj56.mp4", help='folder to save result imgs, can not use input folder')
     # object detect config
     parser.add_argument('--imsize', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf', type=float, default=0.4, help='object confidence threshold')
