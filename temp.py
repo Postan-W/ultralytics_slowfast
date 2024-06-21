@@ -1,12 +1,23 @@
 import numpy as np
-
-a = np.array([[22,1,33,3,999,13,15,47],[22,1,33,3,999,13,15,47],[22,1,33,3,999,13,15,47]])
-result = []
-for i in a:
-    result.append(i[np.argsort(-i)].tolist())
-
-print(result)
-s = ""
-for i in range(4):
-    s += " " + str(i)
-print(s)
+import torch
+tensor = torch.tensor([]).numpy().tolist()
+print(str(0.99))
+print(tensor)
+d = {1.0:1, 2.0:2, 3.0:3}
+print(d)
+# item {
+#   name: "bend/bow (at the waist)"
+#   id: 1
+# }
+# item {
+#   name: "jump/leap"
+#   id: 7
+# }
+# item {
+#   name: "sit"
+#   id: 11
+# }
+# item {
+#   name: "climb (e.g., a mountain)"
+#   id: 20
+# }

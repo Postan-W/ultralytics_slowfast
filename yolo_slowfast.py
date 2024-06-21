@@ -95,8 +95,8 @@ def deepsort_update(Tracker, pred, xywh, np_img):
 
 
 def save_yolopreds_tovideo(yolo_preds, id_to_ava_labels, color_map, output_video, vis=False,avalabel_names=None):
+    #实际上就一张图片，循环只走一次
     for i, (im, pred) in enumerate(zip(yolo_preds.ims, yolo_preds.pred)):
-        # im=cv2.cvtColor(im,cv2.COLOR_BGR2RGB)
         if pred.shape[0]:
             for j, (*box, cls, trackid, vx, vy) in enumerate(pred):
                 if int(cls) != 0:
@@ -151,6 +151,8 @@ def main(config):
         if not ret:
             continue
         yolo_preds=model([img], size=imsize)
+        print("yolo_preds是======================")
+        print(yolo_preds.pred)
         yolo_preds.files=["img.jpg"]
         
         deepsort_outputs=[]
@@ -201,8 +203,8 @@ def main(config):
     
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input', type=str, default="./videos/pj56.mp4", help='test imgs folder or video or camera')
-    parser.add_argument('--output', type=str, default="./videos/output/output_pj56.mp4", help='folder to save result imgs, can not use input folder')
+    parser.add_argument('--input', type=str, default="./videos/1.mp4", help='test imgs folder or video or camera')
+    parser.add_argument('--output', type=str, default="./videos/output/output_1.mp4", help='folder to save result imgs, can not use input folder')
     # object detect config
     parser.add_argument('--imsize', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf', type=float, default=0.4, help='object confidence threshold')

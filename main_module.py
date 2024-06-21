@@ -1,26 +1,18 @@
-import numpy as np
-import os, cv2, time, torch, random, pytorchvideo, warnings, argparse, math
+
+import random,warnings, argparse
 warnings.filterwarnings("ignore", category=UserWarning)
 from pytorchvideo.data.ava import AvaLabeledVideoFramePaths
 from pytorchvideo.models.hub import slowfast_r50_detection
 from deep_sort.deep_sort import DeepSort
 from ultralytics import YOLO
-from utils.pytorchvideo_util import *
+from utils.myutil import *
 
 def main(config):
-    device = config.device
-
-    model = YOLO("./weights/yolov8m.pt")
+    device = "cuda"
+    model = YOLO("./weights/yolov8m.engine")
     video_model = slowfast_r50_detection(True).eval().to(device)
-    deepsort_tracker = DeepSort("deep_sort/deep_sort/deep/checkpoint/ckpt.t7")
-
-    ava_labelnames, _ = AvaLabeledVideoFramePaths.read_label_map("utils/temp.pbtxt")
+    ava_labelnames, _ = AvaLabeledVideoFramePaths.read_label_map("utils/ava_action_list.pbtxt")
     coco_color_map = [[random.randint(0, 255) for _ in range(3)] for _ in range(80)]
-
-
-    while True:
-        pass
-
 
     vide_save_path = config.output
     video = cv2.VideoCapture(config.input)
@@ -30,29 +22,17 @@ def main(config):
 
     cap = MyVideoCapture(config.input)
     id_to_ava_labels = {}
-    a = time.time()
     while not cap.end:
         ret, img = cap.read()
         if not ret:
             continue
-        yolo_preds = model([img], size=imsize)
-        yolo_preds.files = ["img.jpg"]
-
-        deepsort_outputs = []
-        for j in range(len(yolo_preds.pred)):
-            temp = deepsort_update(deepsort_tracker, yolo_preds.pred[j].cpu(), yolo_preds.xywh[j][:, 0:4].cpu(),
-                                   yolo_preds.ims[j])
-            if len(temp) == 0:
-                temp = np.ones((0, 8))
-            deepsort_outputs.append(temp.astype(np.float32))
-
-        yolo_preds.pred = deepsort_outputs
-
-        if len(cap.stack) == 25:
-            print(f"processing {cap.idx // 25}th second clips")
+        result = model.track(source=img,verbose=False,persist=True,tracker="./track_config/botsort.yaml",classes=[0],conf=0.3,iou=0.7)[0]
+        boxes = result.boxes.data.cpu().numpy()
+        if len(cap.stack) == 30:
+            print(f"processing {cap.idx // 30}th second clips")
             clip = cap.get_video_clip()
-            if yolo_preds.pred[0].shape[0]:
-                inputs, inp_boxes, _ = ava_inference_transform(clip, yolo_preds.pred[0][:, 0:4], crop_size=imsize)
+            if boxes.shape[0]:
+                inputs, inp_boxes, _ = ava_inference_transform(clip,boxes[:, 0:4])
                 inp_boxes = torch.cat([torch.zeros(inp_boxes.shape[0], 1), inp_boxes], dim=1)
                 if isinstance(inputs, list):
                     inputs = [inp.unsqueeze(0).to(device) for inp in inputs]
@@ -61,12 +41,37 @@ def main(config):
                 with torch.no_grad():
                     slowfaster_preds = video_model(inputs, inp_boxes.to(device))
                     slowfaster_preds = slowfaster_preds.cpu()
-                for tid, avalabel in zip(yolo_preds.pred[0][:, 5].tolist(),
-                                         np.argmax(slowfaster_preds, axis=1).tolist()):
-                    id_to_ava_labels[tid] = ava_labelnames[avalabel + 1]
 
-        save_yolopreds_tovideo(yolo_preds, id_to_ava_labels, coco_color_map, outputvideo, config.show)
-    print("total cost: {:.3f} s, video length: {} s".format(time.time() - a, cap.idx / 25))
+                #低于一定置信度的box，追踪算法不为其分配id，所以这里做一下筛选
+                boxes_with_id = np.array([box for box in boxes.tolist() if len(box) == 7])#[x1,x2,y1,y2,trackid,conf,cls]
+                #注意追踪的id是用浮点数表示的
+                # for tid, avalabel in zip(boxes_with_id[:,4].tolist(),
+                #                          np.argmax(slowfaster_preds, axis=1).tolist()):
+                #     id_to_ava_labels[tid] = ava_labelnames[avalabel + 1]
+
+                # #我这里选取1:bend/bow 7:jump/leap 11:sit 20:climb这四个动作
+                # for tid, avalabel in zip(boxes_with_id[:, 4].tolist(),slowfaster_preds.tolist()):
+                #
+                #     name1,name2,name3,name4 = ava_labelnames[1].split(" ")[0],ava_labelnames[7].split(" ")[0],ava_labelnames[11].split(" ")[0],ava_labelnames[20].split(" ")[0]
+                #     prob1,prob2,prob3,prob4 = round(avalabel[0],2),round(avalabel[6],2),round(avalabel[10],2),round(avalabel[19],2)
+                #     action_text = "{}:{} {}:{} {}:{} {}:{}".format(name1,prob1,name2,prob2,name3,prob3,name4,prob4)
+                #     id_to_ava_labels[tid] = action_text
+
+                result_labels = []
+                #为每个id选取概率最大的5个动作
+                for id_pres in slowfaster_preds:
+                    result_labels.append(np.argsort(-id_pres).tolist()[:5])
+                for i,(tid, avalabel) in enumerate(zip(boxes_with_id[:, 4].tolist(), result_labels)):
+                    action_text = ""
+                    for action_index in avalabel:
+                        current_action = " " + ava_labelnames[action_index + 1].split(" ")[0] + ":" + str(round(slowfaster_preds[i][action_index].item(),2))
+                        action_text += current_action
+
+                    id_to_ava_labels[tid] = action_text
+
+        #这意味着第一帧给每个id分配的动作类型，默认也分配给剩下n-1帧的相同id(n是clip包含的帧数)
+        save_yolopreds_tovideo_yolov8_version(result, id_to_ava_labels,outputvideo)
+
 
     cap.release()
     outputvideo.release()
@@ -77,20 +82,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', type=str, default="./videos/allscenes_merged.mp4",
                         help='test imgs folder or video or camera')
-    parser.add_argument('--output', type=str, default="./videos/output/output.mp4",
+    parser.add_argument('--output', type=str, default="./videos/output/output_allscenes.mp4",
                         help='folder to save result imgs, can not use input folder')
-    # object detect config
-    parser.add_argument('--imsize', type=int, default=640, help='inference size (pixels)')
-    parser.add_argument('--conf', type=float, default=0.4, help='object confidence threshold')
-    parser.add_argument('--iou', type=float, default=0.4, help='IOU threshold for NMS')
-    parser.add_argument('--device', default='cuda', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --class 0, or --class 0 2 3')
-    parser.add_argument('--show', action='store_true', help='show img')
+
     config = parser.parse_args()
-
-    if config.input.isdigit():
-        print("using local camera.")
-        config.input = int(config.input)
-
-    print(config)
     main(config)
