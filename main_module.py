@@ -12,7 +12,7 @@ def main(config):
     model = YOLO("./weights/yolov8m.engine")
     video_model = slowfast_r50_detection(True).eval().to(device)
     ava_labelnames, _ = AvaLabeledVideoFramePaths.read_label_map("utils/ava_action_list.pbtxt")
-    coco_color_map = [[random.randint(0, 255) for _ in range(3)] for _ in range(80)]
+
 
     vide_save_path = config.output
     video = cv2.VideoCapture(config.input)
@@ -32,7 +32,11 @@ def main(config):
             print(f"processing {cap.idx // 30}th second clips")
             clip = cap.get_video_clip()
             if boxes.shape[0]:
-                inputs, inp_boxes, _ = ava_inference_transform(clip,boxes[:, 0:4])
+                # 低于一定置信度的box，追踪算法不为其分配id，所以这里做一下筛选
+                boxes_with_id = np.array([box for box in boxes.tolist() if len(box) == 7])  # [x1,x2,y1,y2,trackid,conf,cls]
+                print(boxes_with_id)
+                inputs, inp_boxes, _ = ava_inference_transform(clip,boxes_with_id[:, 0:4])
+                print(inputs.dtype,inp_boxes.dtype)
                 inp_boxes = torch.cat([torch.zeros(inp_boxes.shape[0], 1), inp_boxes], dim=1)
                 if isinstance(inputs, list):
                     inputs = [inp.unsqueeze(0).to(device) for inp in inputs]
@@ -42,8 +46,7 @@ def main(config):
                     slowfaster_preds = video_model(inputs, inp_boxes.to(device))
                     slowfaster_preds = slowfaster_preds.cpu()
 
-                #低于一定置信度的box，追踪算法不为其分配id，所以这里做一下筛选
-                boxes_with_id = np.array([box for box in boxes.tolist() if len(box) == 7])#[x1,x2,y1,y2,trackid,conf,cls]
+
                 #注意追踪的id是用浮点数表示的
                 # for tid, avalabel in zip(boxes_with_id[:,4].tolist(),
                 #                          np.argmax(slowfaster_preds, axis=1).tolist()):
