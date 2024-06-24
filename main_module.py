@@ -28,8 +28,8 @@ def main(config):
             continue
         result = model.track(source=img,verbose=False,persist=True,tracker="./track_config/botsort.yaml",classes=[0],conf=0.3,iou=0.7)[0]
         boxes = result.boxes.data.cpu().numpy()
-        if len(cap.stack) == 30:
-            print(f"processing {cap.idx // 30}th second clips")
+        if len(cap.stack) == 32:
+            print(f"processing {cap.idx // 32}th second clips")
             clip = cap.get_video_clip()
             if boxes.shape[0]:
                 # 低于一定置信度的box，追踪算法不为其分配id，所以这里做一下筛选。筛选后要判断一下是否为空
