@@ -93,7 +93,7 @@ def save_yolopreds_tovideo_yolov8_version(result, id_to_ava_labels, output_video
                     im = plot_one_box(box, im, color, text)
                 else:#此时的box[4]是conf了
                     ava_label = 'Unknow'
-                    text = 'conf:{} {}'.format(int(box[4]), ava_label)
+                    text = 'conf:{} {}'.format(box[4], ava_label)
                     color = [15, 76, 243]
                     im = plot_one_box(box, im, color, text)
 

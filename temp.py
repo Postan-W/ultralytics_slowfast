@@ -1,5 +1,4 @@
 import numpy as np
 a = np.array([])
-print(a.shape)
-if a.shape[0]:
-    print(a.shape[0])
+if not len(a):
+    print("空的")

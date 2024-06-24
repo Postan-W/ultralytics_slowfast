@@ -32,12 +32,13 @@ def main(config):
             print(f"processing {cap.idx // 30}th second clips")
             clip = cap.get_video_clip()
             if boxes.shape[0]:
-                # 低于一定置信度的box，追踪算法不为其分配id，所以这里做一下筛选
-                boxes_with_id = np.array([box for box in boxes.tolist() if len(box) == 7])  # [x1,x2,y1,y2,trackid,conf,cls]
-                print(boxes_with_id)
+                # 低于一定置信度的box，追踪算法不为其分配id，所以这里做一下筛选。筛选后要判断一下是否为空
+                boxes_with_id = np.array([box for box in boxes.tolist() if len(box) == 7])#[x1,x2,y1,y2,trackid,conf,cls]
+                if not len(boxes_with_id):
+                    continue
+
                 inputs, inp_boxes, _ = ava_inference_transform(clip,boxes_with_id[:, 0:4])
-                print(inputs.dtype,inp_boxes.dtype)
-                inp_boxes = torch.cat([torch.zeros(inp_boxes.shape[0], 1), inp_boxes], dim=1)
+                inp_boxes = torch.cat([torch.zeros(inp_boxes.shape[0],1),inp_boxes],dim=1).float()#转成和inputs一样的类型
                 if isinstance(inputs, list):
                     inputs = [inp.unsqueeze(0).to(device) for inp in inputs]
                 else:
