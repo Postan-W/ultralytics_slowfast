@@ -1,4 +1,3 @@
-import numpy as np
-a = np.array([])
-if not len(a):
-    print("空的")
+import os
+s = "./ve/rr/tt.txt"
+print()

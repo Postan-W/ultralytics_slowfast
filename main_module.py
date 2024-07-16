@@ -1,4 +1,3 @@
-
 import random,warnings, argparse
 warnings.filterwarnings("ignore", category=UserWarning)
 from pytorchvideo.data.ava import AvaLabeledVideoFramePaths
@@ -9,7 +8,7 @@ from utils.myutil import *
 
 def main(config):
     device = "cuda"
-    model = YOLO("./weights/yolov8m.engine")
+    model = YOLO("./weights/yolov8l.engine")
     video_model = slowfast_r50_detection(True).eval().to(device)
     ava_labelnames, _ = AvaLabeledVideoFramePaths.read_label_map("utils/ava_action_list.pbtxt")
 
@@ -28,8 +27,8 @@ def main(config):
             continue
         result = model.track(source=img,verbose=False,persist=True,tracker="./track_config/botsort.yaml",classes=[0],conf=0.3,iou=0.7)[0]
         boxes = result.boxes.data.cpu().numpy()
-        if len(cap.stack) == 32:
-            print(f"processing {cap.idx // 32}th second clips")
+        if len(cap.stack) == 15:
+            print(f"processing {cap.idx // 15}th second clips")
             clip = cap.get_video_clip()
             if boxes.shape[0]:
                 # 低于一定置信度的box，追踪算法不为其分配id，所以这里做一下筛选。筛选后要判断一下是否为空
@@ -85,9 +84,9 @@ def main(config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input', type=str, default="./videos/allscenes_merged.mp4",
+    parser.add_argument('--input', type=str, default="./videos/input/pingdishuai247.mp4",
                         help='test imgs folder or video or camera')
-    parser.add_argument('--output', type=str, default="./videos/output/output_allscenes.mp4",
+    parser.add_argument('--output', type=str, default="./videos/output/pingdishuai247.mp4",
                         help='folder to save result imgs, can not use input folder')
 
     config = parser.parse_args()

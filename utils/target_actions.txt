@@ -1,0 +1,9 @@
+crawl
+bend/bow
+crouch/kneel
+fall down
+jump/leap
+lie/sleep
+sit
+stand
+climb
