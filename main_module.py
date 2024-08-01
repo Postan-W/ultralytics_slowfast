@@ -84,9 +84,9 @@ def main(config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input', type=str, default="./videos/input/pingdishuai247.mp4",
+    parser.add_argument('--input', type=str, default="./videos/input/suzhoucamera1_0.avi",
                         help='test imgs folder or video or camera')
-    parser.add_argument('--output', type=str, default="./videos/output/pingdishuai247.mp4",
+    parser.add_argument('--output', type=str, default="./videos/output/suzhoucamera1_0.avi",
                         help='folder to save result imgs, can not use input folder')
 
     config = parser.parse_args()

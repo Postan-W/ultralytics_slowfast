@@ -25,16 +25,22 @@ def main(config):
     processed_count = 0
     id_to_ava_labels = {}
     results = []
+    boxes_list = []
+    stack_length = 15
     while ret:
         #待做，这里使用关键点检测模型。关键点缺失较多的直接pass。因为测试发现了一个上半身的人也分配了动作
         result = model.track(source=frame,verbose=False,persist=True,tracker="./track_config/botsort.yaml",classes=[0,1],conf=0.8,iou=0.7)[0]
         results.append(result)
         boxes = result.boxes.data.cpu().numpy()
-        if len(slowfast_stack) == 15:
+        boxes_list.append(boxes)
+        if len(slowfast_stack) == stack_length:
+            target_boxes = boxes_list[int(stack_length/2)]#选取某一帧的boxes作为slowfast的指导boxes。初始选择的就是帧序列中间的那一帧
+            if target_boxes.shape[0]:#如果中间帧没有目标，那么往后选取，知道某一帧有目标
+                pass
             slowfast_stack = [torch.from_numpy(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)).unsqueeze(0) for frame in slowfast_stack]
             clip = torch.cat(slowfast_stack).permute(-1, 0, 1, 2)
             slowfast_stack = []
-            if boxes.shape[0]:
+            if target_boxes.shape[0]:#这意味着从中间帧往后的所有帧都没有目标
                 # 低于一定置信度的box，追踪算法不为其分配id，所以这里做一下筛选。筛选后要判断一下是否为空
                 boxes_with_id = np.array([box for box in boxes.tolist() if len(box) == 7])#[x1,x2,y1,y2,trackid,conf,cls]
                 if not len(boxes_with_id):

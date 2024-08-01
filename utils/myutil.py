@@ -100,3 +100,26 @@ def save_yolopreds_tovideo_yolov8_version(result, id_to_ava_labels, output_video
         im = im.astype(np.uint8)
         output_video.write(im)
 
+
+def save_yolopreds_tovideo_yolov8_version_origin(result, id_to_ava_labels, output_video):
+    im = result.orig_img
+    boxes = result.boxes.data.cpu().numpy().tolist()
+    if len(boxes):
+        for box in boxes:
+            if len(box) == 7:  # 有追踪id
+                if box[4] in id_to_ava_labels.keys():
+                    ava_label = id_to_ava_labels[box[4]]
+                else:
+                    ava_label = 'Unknow'
+                text = '{} {}'.format(int(box[4]), ava_label)
+                color = [15, 76, 243]
+                im = plot_one_box(box, im, color, text)
+            else:  # 此时的box[4]是conf了
+                ava_label = 'Unknow'
+                text = 'conf:{} {}'.format(box[4], ava_label)
+                color = [15, 76, 243]
+                im = plot_one_box(box, im, color, text)
+
+    im = im.astype(np.uint8)
+    output_video.write(im)
+
