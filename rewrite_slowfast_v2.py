@@ -1,9 +1,9 @@
 #author: wmingzhu
 #date: 2024/7/16
-import random,warnings, argparse
+import warnings, argparse
 warnings.filterwarnings("ignore", category=UserWarning)
 from pytorchvideo.data.ava import AvaLabeledVideoFramePaths
-from pytorchvideo.models.hub import slowfast_r50_detection
+from pytorchvideo.models.hub import slowfast_r50_detection,slow_r50_detection
 from ultralytics import YOLO
 from utils.myutil import *
 import glob
@@ -11,8 +11,8 @@ import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 def main(config):
     device = "cuda"
-    model = YOLO("./weights/climb_fall.engine")
-    video_model = slowfast_r50_detection(True).eval().to(device)
+    model = YOLO("./weights/yolov10l_climb_fall2.engine")
+    video_model = slow_r50_detection(True).eval().to(device)
     ava_labelnames, _ = AvaLabeledVideoFramePaths.read_label_map("utils/ava_action_list.pbtxt")
     print(config.input)
     cap = cv2.VideoCapture(config.input)
@@ -25,29 +25,27 @@ def main(config):
     processed_count = 0
     id_to_ava_labels = {}
     results = []
-    boxes_list = []
     stack_length = 15
+    f = open("results.txt","a",encoding='utf-8')
     while ret:
-        #待做，这里使用关键点检测模型。关键点缺失较多的直接pass。因为测试发现了一个上半身的人也分配了动作
-        result = model.track(source=frame,verbose=False,persist=True,tracker="./track_config/botsort.yaml",classes=[0,1],conf=0.8,iou=0.7)[0]
+        result = model.track(source=frame,verbose=False,persist=True,tracker="./track_config/botsort.yaml",classes=[0,1],conf=0.7,iou=0.7)[0]
         results.append(result)
         boxes = result.boxes.data.cpu().numpy()
-        boxes_list.append(boxes)
         if len(slowfast_stack) == stack_length:
-            target_boxes = boxes_list[int(stack_length/2)]#选取某一帧的boxes作为slowfast的指导boxes。初始选择的就是帧序列中间的那一帧
-            if target_boxes.shape[0]:#如果中间帧没有目标，那么往后选取，知道某一帧有目标
-                pass
             slowfast_stack = [torch.from_numpy(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)).unsqueeze(0) for frame in slowfast_stack]
             clip = torch.cat(slowfast_stack).permute(-1, 0, 1, 2)
             slowfast_stack = []
-            if target_boxes.shape[0]:#这意味着从中间帧往后的所有帧都没有目标
+            if boxes.shape[0]:#否则意味着从中间帧往后的所有帧都没有目标
                 # 低于一定置信度的box，追踪算法不为其分配id，所以这里做一下筛选。筛选后要判断一下是否为空
                 boxes_with_id = np.array([box for box in boxes.tolist() if len(box) == 7])#[x1,x2,y1,y2,trackid,conf,cls]
                 if not len(boxes_with_id):
                     print("所有的box都没有id")
+                    for r in results:  #每n帧共用一个动作类型
+                        save_yolopreds_tovideo_yolov8_version(r, id_to_ava_labels, output_video)
+                    results = []
                     continue
 
-                inputs, inp_boxes, _ = ava_inference_transform(clip,boxes_with_id[:, 0:4])
+                inputs, inp_boxes, _ = ava_inference_transform_slow_r50(clip,boxes_with_id[:, 0:4])
                 inp_boxes = torch.cat([torch.zeros(inp_boxes.shape[0],1),inp_boxes],dim=1).float()#转成和inputs一样的类型
                 if isinstance(inputs, list):
                     inputs = [inp.unsqueeze(0).to(device) for inp in inputs]
@@ -55,48 +53,43 @@ def main(config):
                     inputs = inputs.unsqueeze(0).to(device)
                 with torch.no_grad():
                     slowfaster_preds = video_model(inputs, inp_boxes.to(device))
-                    slowfaster_preds = slowfaster_preds.cpu()
+                    slowfaster_preds = slowfaster_preds.cpu()#请注意slowfast的结果并没有经过归一化
+                    slowfaster_preds = slowfaster_preds / slowfaster_preds.sum(axis=1,keepdims=True)#不会出现分母为0报错的情况
 
                 result_labels = []
-                #为每个id选取概率最大的5个动作
                 for id_pres in slowfaster_preds:
-                    result_labels.append(np.argsort(-id_pres).tolist()[:5])
-                # print(result_labels)#[[11, 16, 78, 10, 47]]
+                    result_labels.append(np.argsort(-id_pres).tolist()[:6])
                 for i,(tid, avalabel) in enumerate(zip(boxes_with_id[:, 4].tolist(), result_labels)):
-                    action_text = ""
-                    # if (7 in avalabel) and (4 in avalabel):
-                    #     for action_index in avalabel:
-                    #         current_action = " " + ava_labelnames[action_index + 1].split(" ")[0] + ":" + str(round(slowfaster_preds[i][action_index].item(), 2))
-                    #         action_text += current_action
-                    # elif (6 in avalabel) and (16 in avalabel) and (58 in avalabel):
-                    #     for action_index in avalabel:
-                    #         current_action = " " + ava_labelnames[action_index + 1].split(" ")[0] + ":" + str(round(slowfaster_preds[i][action_index].item(), 2))
-                    #         action_text += current_action
-                    for action_index in avalabel:
-                        current_action = " " + ava_labelnames[action_index + 1].split(" ")[0] + ":" + str(
-                            round(slowfaster_preds[i][action_index].item(), 2))
-                        action_text += current_action
-                    id_to_ava_labels[tid] = action_text
+                    id_to_ava_labels[tid] = {"action_index":avalabel,"action_name":[ava_labelnames[action_index + 1].split(" ")[0] for action_index in avalabel],"action_prob":[round(slowfaster_preds[i][action_index].item(), 3) for action_index in avalabel]}
 
+            max_conf = {}
             for r in results:#每n帧共用一个动作类型
-                save_yolopreds_tovideo_yolov8_version(r, id_to_ava_labels, output_video)
+                yolopreds_filter(r, id_to_ava_labels, max_conf)
+            for r in results:
+                for i,box in enumerate(r.final_boxes):
+                    if box[4] in max_conf.keys():
+                        if box[5] == max_conf[box[4]]:
+                            plot_one_box(box, r.orig_img, r.final_boxes_colors[i], r.final_boxes_textes[i])
+                            f.write(r.final_boxes_textes[i] + "\n")
+                    else:
+                        plot_one_box(box, r.orig_img, r.final_boxes_colors[i], r.final_boxes_textes[i])
+                output_video.write(r.orig_img)
+
             results = []
             id_to_ava_labels = {}#每n帧共用一个动作类型，不保留到下一批
+
         processed_count += 1
         print("{}/{},{}%".format(processed_count, total_frames, round((processed_count / total_frames) * 100, 2)))
         ret, frame = cap.read()
         slowfast_stack.append(frame)
-        # save_yolopreds_tovideo_yolov8_version(result, id_to_ava_labels, output_video)
-
-
 
     cap.release()
     output_video.release()
     print('saved video to:',config.output)
-
+    f.close()
 
 if __name__ == "__main__":
-    videos = glob.glob("C:/Users/wmingdru/Desktop/pose_train_videos/*")
+    videos = glob.glob("C:/Users/wmingdru/Desktop/certain/*")
     print(videos)
     for video in videos:
         parser = argparse.ArgumentParser()

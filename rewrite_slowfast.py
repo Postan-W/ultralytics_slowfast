@@ -39,6 +39,9 @@ def main(config):
                 boxes_with_id = np.array([box for box in boxes.tolist() if len(box) == 7])#[x1,x2,y1,y2,trackid,conf,cls]
                 if not len(boxes_with_id):
                     print("所有的box都没有id")
+                    for r in results:  # 每n帧共用一个动作类型
+                        save_yolopreds_tovideo_yolov8_version(r, id_to_ava_labels, output_video)
+                    results = []
                     continue
 
                 inputs, inp_boxes, _ = ava_inference_transform(clip,boxes_with_id[:, 0:4])
@@ -73,7 +76,7 @@ def main(config):
                     id_to_ava_labels[tid] = action_text
 
             for r in results:#每n帧共用一个动作类型
-                save_yolopreds_tovideo_yolov8_version(r, id_to_ava_labels, output_video)
+                save_yolopreds_tovideo_yolov8_version_origin(r, id_to_ava_labels, output_video)
             results = []
             id_to_ava_labels = {}#每n帧共用一个动作类型，不保留到下一批
         processed_count += 1
@@ -90,7 +93,7 @@ def main(config):
 
 
 if __name__ == "__main__":
-    videos = glob.glob("C:/Users/wmingdru/Desktop/pose_train_videos/*")
+    videos = glob.glob("C:/Users/wmingdru/Desktop/temp/*")
     print(videos)
     for video in videos:
         parser = argparse.ArgumentParser()

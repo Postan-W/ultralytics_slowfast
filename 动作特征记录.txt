@@ -4,3 +4,5 @@ lie/sleep的概率大于0.02或者fall的概率大于0.02，这二者有其一�
 这样就不对了，所以同时应该保证没有除了这两个动作外，其他概率特别大的动作
 2.翻越
 要有jump或climb,同时touch和run/jog和carry/hold必有
+touch和carry/hold必有，run/jog、climb、jump/leap三者有其一。后三者高频出现，甚至有时候同时出现，
+但是偶尔一个也不出现，所以现在放宽条件，只要前两个同时存在即可

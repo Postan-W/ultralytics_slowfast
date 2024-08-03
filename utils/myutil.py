@@ -78,24 +78,164 @@ def ava_inference_transform(
 
     return clip, torch.from_numpy(boxes), roi_boxes
 
+def ava_inference_transform_slow_r50(
+    clip,
+    boxes,
+    num_frames = 4, #if using slowfast_r50_detection, change this to 32
+    crop_size = 256,
+    data_mean = [0.45, 0.45, 0.45],
+    data_std = [0.225, 0.225, 0.225],
+    slow_fast_alpha = None, #if using slowfast_r50_detection, change this to 4
+):
+
+    boxes = np.array(boxes)
+    ori_boxes = boxes.copy()
+
+    # Image [0, 255] -> [0, 1].
+    clip = uniform_temporal_subsample(clip, num_frames)
+    clip = clip.float()
+    clip = clip / 255.0
+
+    height, width = clip.shape[2], clip.shape[3]
+    # The format of boxes is [x1, y1, x2, y2]. The input boxes are in the
+    # range of [0, width] for x and [0,height] for y
+    boxes = clip_boxes_to_image(boxes, height, width)
+
+    # Resize short side to crop_size. Non-local and STRG uses 256.
+    clip, boxes = short_side_scale_with_boxes(
+        clip,
+        size=crop_size,
+        boxes=boxes,
+    )
+
+    # Normalize images by mean and std.
+    clip = normalize(
+        clip,
+        np.array(data_mean, dtype=np.float32),
+        np.array(data_std, dtype=np.float32),
+    )
+
+    boxes = clip_boxes_to_image(
+        boxes, clip.shape[2],  clip.shape[3]
+    )
+
+    # Incase of slowfast, generate both pathways
+    if slow_fast_alpha is not None:
+        fast_pathway = clip
+        # Perform temporal sampling from the fast pathway.
+        slow_pathway = torch.index_select(
+            clip,
+            1,
+            torch.linspace(
+                0, clip.shape[1] - 1, clip.shape[1] // slow_fast_alpha
+            ).long(),
+        )
+        clip = [slow_pathway, fast_pathway]
+
+    return clip,torch.from_numpy(boxes), ori_boxes
+
+def yolopreds_filter(result, id_to_ava_labels,max_conf={}):
+    result.final_boxes = []
+    result.final_boxes_textes = []
+    result.final_boxes_colors = []
+    boxes = result.boxes.data.cpu().numpy().tolist()
+    if len(boxes):
+        for box in boxes:
+            if len(box) == 7:  # 有追踪id
+                if box[4] in id_to_ava_labels.keys():
+                    if box[-1] == 0:
+                        if (16 in id_to_ava_labels[box[4]]["action_index"]) and (
+                                58 in id_to_ava_labels[box[4]]["action_index"]):
+                            # if (9 in id_to_ava_labels[box[4]]["action_index"]) or (19 in id_to_ava_labels[box[4]]["action_index"]) or (6 in id_to_ava_labels[box[4]]["action_index"]):
+                            text = "climb" + " conf:" + str(round(box[5], 2))
+                            for i, name in enumerate(id_to_ava_labels[box[4]]["action_name"]):
+                                text += " " + name + ":" + str(id_to_ava_labels[box[4]]["action_prob"][i])
+
+                            color = [255, 0, 0]
+                            result.final_boxes.append(box)
+                            result.final_boxes_textes.append(text)
+                            result.final_boxes_colors.append(color)
+                            if box[4] in max_conf.keys():
+                                if box[5] > max_conf[box[4]]:
+                                    max_conf[box[4]] = box[5]
+                            else:
+                                max_conf[box[4]] = box[5]
+
+                    elif box[-1] == 1:
+                        if ((4 in id_to_ava_labels[box[4]]["action_index"]) and
+                            id_to_ava_labels[box[4]]["action_prob"][
+                                id_to_ava_labels[box[4]]["action_index"].index(4)] > 0.2) or (
+                                (7 in id_to_ava_labels[box[4]]["action_index"]) and
+                                id_to_ava_labels[box[4]]["action_prob"][
+                                    id_to_ava_labels[box[4]]["action_index"].index(7)] > 0.2):
+                            text = "fall" + " conf:" + str(round(box[5], 2))
+                            for i, name in enumerate(id_to_ava_labels[box[4]]["action_name"]):
+                                text += " " + name + ":" + str(id_to_ava_labels[box[4]]["action_prob"][i])
+
+                            color = [0, 0, 255]
+                            result.final_boxes.append(box)
+                            result.final_boxes_textes.append(text)
+                            result.final_boxes_colors.append(color)
+                            if box[4] in max_conf.keys():
+                                if box[5] > max_conf[box[4]]:
+                                    max_conf[box[4]] = box[5]
+                            else:
+                                max_conf[box[4]] = box[5]
+
+                else:
+                    if box[5] > 0.94:
+                        if box[-1] == 0:
+                            color = [255, 0, 0]
+                            text = "climb conf:{}".format(box[5])
+                            result.final_boxes.append(box)
+                            result.final_boxes_textes.append(text)
+                            result.final_boxes_colors.append(color)
+                        elif box[-1] == 1:
+                            color = [0, 0, 255]
+                            text = "fall conf:{}".format(box[5])
+                            result.final_boxes.append(box)
+                            result.final_boxes_textes.append(text)
+                            result.final_boxes_colors.append(color)
+
+
+
 def save_yolopreds_tovideo_yolov8_version(result, id_to_ava_labels, output_video):
         im = result.orig_img
         boxes = result.boxes.data.cpu().numpy().tolist()
         if len(boxes):
             for box in boxes:
-                if len(box) == 7:#有追踪id
+                if len(box) == 7:  # 有追踪id
                     if box[4] in id_to_ava_labels.keys():
-                        ava_label = id_to_ava_labels[box[4]]
-                    else:
-                        ava_label = 'Unknow'
-                    text = '{} {}'.format(int(box[4]), ava_label)
-                    color = [15, 76, 243]
-                    im = plot_one_box(box, im, color, text)
-                else:#此时的box[4]是conf了
-                    ava_label = 'Unknow'
-                    text = 'conf:{} {}'.format(box[4], ava_label)
-                    color = [15, 76, 243]
-                    im = plot_one_box(box, im, color, text)
+                        if box[-1] == 0:
+                            if (16 in id_to_ava_labels[box[4]]["action_index"]) and (58 in id_to_ava_labels[box[4]]["action_index"]):
+                                # if (9 in id_to_ava_labels[box[4]]["action_index"]) or (19 in id_to_ava_labels[box[4]]["action_index"]) or (6 in id_to_ava_labels[box[4]]["action_index"]):
+                                    text = "climb" + " conf:" + str(round(box[5],2))
+                                    for i, name in enumerate(id_to_ava_labels[box[4]]["action_name"]):
+                                        text += " " + name + ":" + str(id_to_ava_labels[box[4]]["action_prob"][i])
+
+                                    color = [255, 0, 0]
+                                    im = plot_one_box(box, im, color, text)
+                            # else:
+                            #     text = "yolo targets filtered by slowfast"
+                            #     color = [0, 255, 0]
+                            #     im = plot_one_box(box, im, color, text)
+                        elif box[-1] == 1:
+                            if ((4 in id_to_ava_labels[box[4]]["action_index"]) and
+                                id_to_ava_labels[box[4]]["action_prob"][
+                                    id_to_ava_labels[box[4]]["action_index"].index(4)] > 0.2) or (
+                                    (7 in id_to_ava_labels[box[4]]["action_index"]) and
+                                    id_to_ava_labels[box[4]]["action_prob"][
+                                        id_to_ava_labels[box[4]]["action_index"].index(7)] > 0.2):
+                                text = "fall" + " conf:" + str(round(box[5],2))
+                                for i, name in enumerate(id_to_ava_labels[box[4]]["action_name"]):
+                                    text += " " + name + ":" + str(id_to_ava_labels[box[4]]["action_prob"][i])
+
+                                color = [0, 0, 255]
+                                im = plot_one_box(box, im, color, text)
+                            # else:
+                            #     text = "yolo targets filtered by slowfast"
+                            #     color = [0, 255, 0]
+                            #     im = plot_one_box(box, im, color, text)
 
         im = im.astype(np.uint8)
         output_video.write(im)
