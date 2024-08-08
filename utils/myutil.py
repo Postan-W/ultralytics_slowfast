@@ -142,10 +142,24 @@ def yolopreds_filter(result, id_to_ava_labels,max_conf={}):
     if len(boxes):
         for box in boxes:
             if len(box) == 7:  # 有追踪id
-                if box[4] in id_to_ava_labels.keys():
+                if box[5] > 0.96:
                     if box[-1] == 0:
-                        if (16 in id_to_ava_labels[box[4]]["action_index"]) and (
-                                58 in id_to_ava_labels[box[4]]["action_index"]):
+                        color = [255, 0, 0]
+                        text = "climb conf:{}".format(box[5])
+                        result.final_boxes.append(box)
+                        result.final_boxes_textes.append(text)
+                        result.final_boxes_colors.append(color)
+                    elif box[-1] == 1:
+                        color = [0, 0, 255]
+                        text = "fall conf:{}".format(box[5])
+                        result.final_boxes.append(box)
+                        result.final_boxes_textes.append(text)
+                        result.final_boxes_colors.append(color)
+
+                elif box[4] in id_to_ava_labels.keys():
+                    if box[-1] == 0:
+                        if (16 in id_to_ava_labels[box[4]]["action_index"]) and (58 in id_to_ava_labels[box[4]]["action_index"]) and (id_to_ava_labels[box[4]]["action_prob"][id_to_ava_labels[box[4]]["action_index"].index(16)] > 0.1) and (id_to_ava_labels[box[4]]["action_prob"][
+                                id_to_ava_labels[box[4]]["action_index"].index(58)] > 0.1):
                             # if (9 in id_to_ava_labels[box[4]]["action_index"]) or (19 in id_to_ava_labels[box[4]]["action_index"]) or (6 in id_to_ava_labels[box[4]]["action_index"]):
                             text = "climb" + " conf:" + str(round(box[5], 2))
                             for i, name in enumerate(id_to_ava_labels[box[4]]["action_name"]):
@@ -182,20 +196,8 @@ def yolopreds_filter(result, id_to_ava_labels,max_conf={}):
                             else:
                                 max_conf[box[4]] = box[5]
 
-                else:
-                    if box[5] > 0.94:
-                        if box[-1] == 0:
-                            color = [255, 0, 0]
-                            text = "climb conf:{}".format(box[5])
-                            result.final_boxes.append(box)
-                            result.final_boxes_textes.append(text)
-                            result.final_boxes_colors.append(color)
-                        elif box[-1] == 1:
-                            color = [0, 0, 255]
-                            text = "fall conf:{}".format(box[5])
-                            result.final_boxes.append(box)
-                            result.final_boxes_textes.append(text)
-                            result.final_boxes_colors.append(color)
+
+
 
 
 

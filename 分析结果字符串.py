@@ -5,7 +5,7 @@ def get_lines(filepath="./results.txt"):
 
 
 
-def conf_filter(lines,conf_thre=0.7,classname="fall"):
+def conf_filter(lines,conf_thre=0.95,classname="fall"):
     results = []
     for line in lines:
         conf = float(line.split(" ")[1].split(":")[1])
@@ -13,7 +13,7 @@ def conf_filter(lines,conf_thre=0.7,classname="fall"):
             results.append(line)
     return results
 
-lines = conf_filter(get_lines(),classname="fall")
+lines = conf_filter(get_lines(),classname="climb")
 
 #分析各个动作单独出现的情况
 def single_action_prob(lines):
@@ -23,7 +23,7 @@ def single_action_prob(lines):
         actions = line.strip().split(" ")[2:]
         for action in actions:
             name, prob = action.split(":")
-            if name in action_dict:
+            if name in action_dict.keys():
                 action_dict[name]["count"] += 1
                 action_dict[name]["prob_sum"] += float(prob)
                 if float(prob) < action_dict[name]["min_prob"]:
@@ -48,5 +48,6 @@ def single_action_prob(lines):
         print("动作\"{}\"出现的频率是:{},平均预测概率是:{},最大预测概率是:{},最小预测概率是:{}".format(result["name"],result["frequence"],result["prob_avg"],result["max_prob"],result["min_prob"]))
 
 
+#注：频率大于1的是不同动作缩略名称相同导致的
 single_action_prob(lines)
 

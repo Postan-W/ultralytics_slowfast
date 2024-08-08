@@ -11,7 +11,7 @@ import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 def main(config):
     device = "cuda"
-    model = YOLO("./weights/cimb_fall_1280.engine")
+    model = YOLO("./weights/climb_fall_0805.engine")
     video_model = slow_r50_detection(True).eval().to(device)
     ava_labelnames, _ = AvaLabeledVideoFramePaths.read_label_map("utils/ava_action_list.pbtxt")
     print(config.input)
@@ -26,15 +26,17 @@ def main(config):
     id_to_ava_labels = {}
     results = []
     stack_length = 15
-    f = open("results.txt","a",encoding='utf-8')
+    step = 5
+    f = open("results_slide_window.txt","a",encoding='utf-8')
     while ret:
-        result = model.track(source=frame,verbose=False,imgsz=1280,persist=True,tracker="./track_config/botsort.yaml",classes=[0,1],conf=0.6,iou=0.7)[0]
+        result = model.track(source=frame,verbose=False,persist=True,tracker="./track_config/botsort.yaml",classes=[0,1],conf=0.6,iou=0.7)[0]
         results.append(result)
         boxes = result.boxes.data.cpu().numpy()
         if len(slowfast_stack) == stack_length:
+            slowfast_stack_copy = slowfast_stack[step:]
             slowfast_stack = [torch.from_numpy(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)).unsqueeze(0) for frame in slowfast_stack]
             clip = torch.cat(slowfast_stack).permute(-1, 0, 1, 2)
-            slowfast_stack = []
+            slowfast_stack = slowfast_stack_copy
             if boxes.shape[0]:
                 # 低于一定置信度的box，追踪算法不为其分配id，所以这里做一下筛选。筛选后要判断一下是否为空
                 boxes_with_id = np.array([box for box in boxes.tolist() if len(box) == 7])#[x1,x2,y1,y2,trackid,conf,cls]
@@ -63,11 +65,11 @@ def main(config):
                     id_to_ava_labels[tid] = {"action_index":avalabel,"action_name":[ava_labelnames[action_index + 1].split(" ")[0] for action_index in avalabel],"action_prob":[round(slowfaster_preds[i][action_index].item(), 3) for action_index in avalabel]}
 
             max_conf = {}
-            for r in results:#每n帧共用一个动作类型
+            for r in results[stack_length-step:]:#每n帧共用一个动作类型
                 yolopreds_filter(r, id_to_ava_labels, max_conf)
 
             flag = False #标志该帧有没有目标对象，有的话就重复写几帧，便于查看
-            for r in results:
+            for r in results[stack_length-step:]:
                 flag = False
                 for i,box in enumerate(r.final_boxes):
                     if box[4] in max_conf.keys():
@@ -84,7 +86,7 @@ def main(config):
                 else:
                     output_video.write(r.orig_img)
 
-            results = []
+            results = results[step:]
             id_to_ava_labels = {}#每n帧共用一个动作类型，不保留到下一批
 
         processed_count += 1
@@ -98,14 +100,14 @@ def main(config):
     f.close()
 
 if __name__ == "__main__":
-    videos = glob.glob("C:/Users/wmingdru/Desktop/clear_videos/*")
+    videos = glob.glob("C:/Users/wmingdru/Desktop/clear_videos_copy/*")
     print(videos)
     for video in videos:
         parser = argparse.ArgumentParser()
         parser.add_argument('--input', type=str, default=video,
                             help='test imgs folder or video or camera')
         output = os.path.splitext(os.path.split(video)[1])[0]+".mp4"
-        parser.add_argument('--output', type=str, default="./videos/output/{}".format(output),
+        parser.add_argument('--output', type=str, default="./videos/output3/{}".format(output),
                             help='folder to save result imgs, can not use input folder')
 
         config = parser.parse_args()
