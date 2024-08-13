@@ -142,7 +142,7 @@ def yolopreds_filter(result, id_to_ava_labels,max_conf={}):
     if len(boxes):
         for box in boxes:
             if len(box) == 7:  # 有追踪id
-                if box[5] > 0.96:
+                if box[5] > 0.95:
                     if box[-1] == 0:
                         color = [255, 0, 0]
                         text = "climb conf:{}".format(box[5])
@@ -158,8 +158,8 @@ def yolopreds_filter(result, id_to_ava_labels,max_conf={}):
 
                 elif box[4] in id_to_ava_labels.keys():
                     if box[-1] == 0:
-                        if (16 in id_to_ava_labels[box[4]]["action_index"]) and (58 in id_to_ava_labels[box[4]]["action_index"]) and (id_to_ava_labels[box[4]]["action_prob"][id_to_ava_labels[box[4]]["action_index"].index(16)] > 0.1) and (id_to_ava_labels[box[4]]["action_prob"][
-                                id_to_ava_labels[box[4]]["action_index"].index(58)] > 0.1):
+                        if (16 in id_to_ava_labels[box[4]]["action_index"]) and (58 in id_to_ava_labels[box[4]]["action_index"]) and ((id_to_ava_labels[box[4]]["action_prob"][id_to_ava_labels[box[4]]["action_index"].index(16)] > 0.1) or (id_to_ava_labels[box[4]]["action_prob"][
+                                id_to_ava_labels[box[4]]["action_index"].index(58)] > 0.1)):
                             # if (9 in id_to_ava_labels[box[4]]["action_index"]) or (19 in id_to_ava_labels[box[4]]["action_index"]) or (6 in id_to_ava_labels[box[4]]["action_index"]):
                             text = "climb" + " conf:" + str(round(box[5], 2))
                             for i, name in enumerate(id_to_ava_labels[box[4]]["action_name"]):

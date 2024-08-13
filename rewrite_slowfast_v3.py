@@ -29,7 +29,7 @@ def main(config):
     step = 5
     f = open("results_slide_window.txt","a",encoding='utf-8')
     while ret:
-        result = model.track(source=frame,verbose=False,persist=True,tracker="./track_config/botsort.yaml",classes=[0,1],conf=0.6,iou=0.7)[0]
+        result = model.track(source=frame,verbose=False,imgsz=1280,persist=True,tracker="./track_config/botsort.yaml",classes=[0,1],conf=0.6,iou=0.7)[0]
         results.append(result)
         boxes = result.boxes.data.cpu().numpy()
         if len(slowfast_stack) == stack_length:

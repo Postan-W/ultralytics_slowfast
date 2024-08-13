@@ -11,7 +11,7 @@ import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 def main(config):
     device = "cuda"
-    model = YOLO("./weights/cimb_fall_1280.engine")
+    model = YOLO("./weights/climb_fall_20240812.engine")
     video_model = slow_r50_detection(True).eval().to(device)
     ava_labelnames, _ = AvaLabeledVideoFramePaths.read_label_map("utils/ava_action_list.pbtxt")
     print(config.input)
