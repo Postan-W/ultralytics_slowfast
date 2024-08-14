@@ -98,7 +98,7 @@ def main(config):
     f.close()
 
 if __name__ == "__main__":
-    videos = glob.glob("C:/Users/wmingdru/Desktop/loubao/*")
+    videos = glob.glob("C:/Users/wmingdru/Desktop/clear_videos/c*")
     print(videos)
     for video in videos:
         parser = argparse.ArgumentParser()

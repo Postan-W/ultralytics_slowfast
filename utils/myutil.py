@@ -160,20 +160,27 @@ def yolopreds_filter(result, id_to_ava_labels,max_conf={}):
                     if box[-1] == 0:
                         if (16 in id_to_ava_labels[box[4]]["action_index"]) and (58 in id_to_ava_labels[box[4]]["action_index"]) and ((id_to_ava_labels[box[4]]["action_prob"][id_to_ava_labels[box[4]]["action_index"].index(16)] > 0.1) or (id_to_ava_labels[box[4]]["action_prob"][
                                 id_to_ava_labels[box[4]]["action_index"].index(58)] > 0.1)):
-                            # if (9 in id_to_ava_labels[box[4]]["action_index"]) or (19 in id_to_ava_labels[box[4]]["action_index"]) or (6 in id_to_ava_labels[box[4]]["action_index"]):
-                            text = "climb" + " conf:" + str(round(box[5], 2))
-                            for i, name in enumerate(id_to_ava_labels[box[4]]["action_name"]):
-                                text += " " + name + ":" + str(id_to_ava_labels[box[4]]["action_prob"][i])
+                            #如果stand在动作里面，并且概率小于0.2，则算作翻越。如果stand不在里面则直接算作翻越
+                            stand_flag = True
+                            if 11 in id_to_ava_labels[box[4]]["action_index"]:
+                                stand_flag = False
+                                if id_to_ava_labels[box[4]]["action_prob"][id_to_ava_labels[box[4]]["action_index"].index(11)] < 0.2:
+                                    stand_flag = True
 
-                            color = [255, 0, 0]
-                            result.final_boxes.append(box)
-                            result.final_boxes_textes.append(text)
-                            result.final_boxes_colors.append(color)
-                            if box[4] in max_conf.keys():
-                                if box[5] > max_conf[box[4]]:
+                            if stand_flag:
+                                text = "climb" + " conf:" + str(round(box[5], 2))
+                                for i, name in enumerate(id_to_ava_labels[box[4]]["action_name"]):
+                                    text += " " + name + ":" + str(id_to_ava_labels[box[4]]["action_prob"][i])
+
+                                color = [255, 0, 0]
+                                result.final_boxes.append(box)
+                                result.final_boxes_textes.append(text)
+                                result.final_boxes_colors.append(color)
+                                if box[4] in max_conf.keys():
+                                    if box[5] > max_conf[box[4]]:
+                                        max_conf[box[4]] = box[5]
+                                else:
                                     max_conf[box[4]] = box[5]
-                            else:
-                                max_conf[box[4]] = box[5]
 
                     elif box[-1] == 1:
                         if ((4 in id_to_ava_labels[box[4]]["action_index"]) and
