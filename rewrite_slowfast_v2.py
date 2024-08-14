@@ -8,8 +8,12 @@ from ultralytics import YOLO
 from utils.myutil import *
 import glob
 import os
+import time
+from 进度条 import print_process
+from colorama import Fore, Back,Style
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 def main(config):
+    start = time.perf_counter()
     device = "cuda"
     model = YOLO("./weights/climb_fall_20240812.engine")
     video_model = slow_r50_detection(True).eval().to(device)
@@ -88,7 +92,8 @@ def main(config):
             id_to_ava_labels = {}#每n帧共用一个动作类型，不保留到下一批
 
         processed_count += 1
-        print("{}/{},{}%".format(processed_count, total_frames, round((processed_count / total_frames) * 100, 2)))
+        # print("{}/{},{}%".format(processed_count, total_frames, round((processed_count / total_frames) * 100, 2)))
+        print_process(processed_count,total_frames)
         ret, frame = cap.read()
         slowfast_stack.append(frame)
 
@@ -98,7 +103,7 @@ def main(config):
     f.close()
 
 if __name__ == "__main__":
-    videos = glob.glob("C:/Users/wmingdru/Desktop/clear_videos/c*")
+    videos = glob.glob("./videos/input/*")
     print(videos)
     for video in videos:
         parser = argparse.ArgumentParser()
