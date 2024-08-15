@@ -142,7 +142,7 @@ def yolopreds_filter(result, id_to_ava_labels,max_conf={}):
     if len(boxes):
         for box in boxes:
             if len(box) == 7:  # 有追踪id
-                if box[5] > 0.95:
+                if box[5] > 0.93:
                     if box[-1] == 0:
                         color = [255, 0, 0]
                         text = "climb conf:{}".format(box[5])
@@ -158,8 +158,26 @@ def yolopreds_filter(result, id_to_ava_labels,max_conf={}):
 
                 elif box[4] in id_to_ava_labels.keys():
                     if box[-1] == 0:
-                        if (16 in id_to_ava_labels[box[4]]["action_index"]) and (58 in id_to_ava_labels[box[4]]["action_index"]) and ((id_to_ava_labels[box[4]]["action_prob"][id_to_ava_labels[box[4]]["action_index"].index(16)] > 0.1) or (id_to_ava_labels[box[4]]["action_prob"][
-                                id_to_ava_labels[box[4]]["action_index"].index(58)] > 0.1)):
+                        if (16 in id_to_ava_labels[box[4]]["action_index"]) and (58 in id_to_ava_labels[box[4]]["action_index"]):
+                        # if (16 in id_to_ava_labels[box[4]]["action_index"]) and (
+                        #         58 in id_to_ava_labels[box[4]]["action_index"]) and ((id_to_ava_labels[box[4]][
+                        #                                                                   "action_prob"][
+                        #                                                                   id_to_ava_labels[box[4]][
+                        #                                                                       "action_index"].index(
+                        #                                                                           16)] > 0.1) or (
+                        #                                                                      id_to_ava_labels[
+                        #                                                                          box[4]][
+                        #                                                                          "action_prob"][
+                        #                                                                          id_to_ava_labels[
+                        #                                                                              box[4]][
+                        #                                                                              "action_index"].index(
+                        #                                                                              58)] > 0.1)):
+
+                            walk_flag = True
+                            if 13 in id_to_ava_labels[box[4]]["action_index"]:
+                                walk_flag = False
+                                if id_to_ava_labels[box[4]]["action_prob"][id_to_ava_labels[box[4]]["action_index"].index(13)] < id_to_ava_labels[box[4]]["action_prob"][id_to_ava_labels[box[4]]["action_index"].index(16)]:
+                                    walk_flag = True
                             #如果stand在动作里面，并且概率小于0.2，则算作翻越。如果stand不在里面则直接算作翻越
                             stand_flag = True
                             if 11 in id_to_ava_labels[box[4]]["action_index"]:
@@ -167,7 +185,7 @@ def yolopreds_filter(result, id_to_ava_labels,max_conf={}):
                                 if id_to_ava_labels[box[4]]["action_prob"][id_to_ava_labels[box[4]]["action_index"].index(11)] < 0.2:
                                     stand_flag = True
 
-                            if stand_flag:
+                            if stand_flag and walk_flag:
                                 text = "climb" + " conf:" + str(round(box[5], 2))
                                 for i, name in enumerate(id_to_ava_labels[box[4]]["action_name"]):
                                     text += " " + name + ":" + str(id_to_ava_labels[box[4]]["action_prob"][i])

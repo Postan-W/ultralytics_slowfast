@@ -4,7 +4,7 @@ import time
 from colorama import Fore, Back,Style
 
 
-def print_progress(current,total):
+def print_progress(current,total,start):
     """
      打印任务进度
     :param current: 当前step
@@ -30,5 +30,5 @@ if __name__ == "__main__":
     #测试
     start = time.perf_counter()
     for i in range(1,1001):
-        print_progress(i, 1000)
+        print_progress(i, 1000,start)
         time.sleep(0.01)

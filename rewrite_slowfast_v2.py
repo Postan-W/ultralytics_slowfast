@@ -9,13 +9,13 @@ from utils.myutil import *
 import glob
 import os
 import time
-from 进度条 import print_process
+from 进度条 import print_progress
 from colorama import Fore, Back,Style
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 def main(config):
     start = time.perf_counter()
     device = "cuda"
-    model = YOLO("./weights/climb_fall_20240812.engine")
+    model = YOLO("./weights/climb_fall_20240815_640.engine")
     video_model = slow_r50_detection(True).eval().to(device)
     ava_labelnames, _ = AvaLabeledVideoFramePaths.read_label_map("utils/ava_action_list.pbtxt")
     print(config.input)
@@ -32,7 +32,7 @@ def main(config):
     stack_length = 15
     f = open("results.txt","a",encoding='utf-8')
     while ret:
-        result = model.track(source=frame,verbose=False,imgsz=1280,persist=True,tracker="./track_config/botsort.yaml",classes=[0,1],conf=0.6,iou=0.7)[0]
+        result = model.track(source=frame,verbose=False,persist=True,tracker="./track_config/botsort.yaml",classes=[0,1],conf=0.6,iou=0.7)[0]
         results.append(result)
         boxes = result.boxes.data.cpu().numpy()
         if len(slowfast_stack) == stack_length:
@@ -43,7 +43,7 @@ def main(config):
                 # 低于一定置信度的box，追踪算法不为其分配id，所以这里做一下筛选。筛选后要判断一下是否为空
                 boxes_with_id = np.array([box for box in boxes.tolist() if len(box) == 7])#[x1,x2,y1,y2,trackid,conf,cls]
                 if not len(boxes_with_id):
-                    print("所有的box都没有id")
+                    print("所有的box都没有id",end="")
                     for r in results:  #每n帧共用一个动作类型
                         save_yolopreds_tovideo_yolov8_version(r, id_to_ava_labels, output_video)
                     results = []
@@ -93,7 +93,7 @@ def main(config):
 
         processed_count += 1
         # print("{}/{},{}%".format(processed_count, total_frames, round((processed_count / total_frames) * 100, 2)))
-        print_process(processed_count,total_frames)
+        print_progress(processed_count,total_frames,start)
         ret, frame = cap.read()
         slowfast_stack.append(frame)
 
@@ -103,7 +103,7 @@ def main(config):
     f.close()
 
 if __name__ == "__main__":
-    videos = glob.glob("./videos/input/*")
+    videos = glob.glob("C:/Users/wmingdru/Desktop/clear_videos/*")
     print(videos)
     for video in videos:
         parser = argparse.ArgumentParser()
